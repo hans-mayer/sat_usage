@@ -3,6 +3,8 @@
 # Sat Jul  4 21:57:16 CEST 2015
 # Sat Feb  6 20:49:24 CET 2016 - mayer - correct usage 
 # Sat Apr  2 21:59:24 CEST 2016 - mayer - header with IP 
+# Fri Apr  8 21:32:49 CEST 2016 - mayer 
+
 
 
 export AWK DATAFILE AVGCOUNT LIST STERM FILE LINEWIDTH MINMAX MIN MAX XTICS MYIPIS
@@ -14,7 +16,7 @@ STERM="set term x11 persist"
 
 thisusage(){
     echo
-    echo show number of satellites as graph - v 2016 02 06
+    echo show number of satellites as graph - v 2016 04 08
     echo "usage: $0 [ -c COUNT ] [ -f IMG ] FILE " 
     echo "       COUNT >= 1 " 
     echo "       -f IMG      - output to file - IMG can be jpeg, png, ... " 
@@ -26,6 +28,7 @@ AWK=gawk
 AVGCOUNT=1
 XTICS=1
 
+# argument parsing 
 do_once=1
 while test $# -gt 2 -o do_once -eq 1
   do
@@ -46,6 +49,7 @@ while test $# -gt 2 -o do_once -eq 1
     fi
   done
 
+# check the value of argument "-c"
 if test "$AVGCOUNT" -lt 1 -o "$AVGCOUNT" -gt 86400 
   then
     thisusage
@@ -63,6 +67,7 @@ if test ! -f "$DATAFILE"
 fi
 
 
+# rudimentaer check if $DISPLAY is available 
 if test -z "$FILE"
   then
     # check if DISPLAY is set ?
