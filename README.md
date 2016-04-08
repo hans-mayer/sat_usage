@@ -6,8 +6,8 @@ ksh scripts using gawk, gnuplot and gnuplot-x11
 
 ##  sat_usage_ksh
 
-show number of satellites as graph - v 2016 02 06
-usage: /opt/iiasa/bin/sat_usage_ksh [ -c COUNT ] [ -f IMG ] FILE
+  show number of satellites as graph - v 2016 02 06
+  usage: /opt/iiasa/bin/sat_usage_ksh [ -c COUNT ] [ -f IMG ] FILE
        COUNT >= 1
        -f IMG      - output to file - IMG can be jpeg, png, ...
 
