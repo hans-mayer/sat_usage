@@ -1,0 +1,46 @@
+:
+
+# Sat Jul  4 17:06:16 CEST 2015 - mayer 
+
+
+export PATH
+
+PATH=/opt/iiasa/bin:/usr/local/bin:/usr/local/sbin:$PATH
+
+
+if test $# -ne 0 
+  then 
+    exit 1 
+fi 
+
+# http://www.gpsinformation.org/dale/nmea.htm
+# time 
+# $GPRMC,202410,A,4808.9495,N,01617.0239,E,0.0072,161.379,030715,,*2A
+# satellites 
+# $GPGSA,A,3,1,3,4,11,19,22,27,28,32,126,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,1.7,1.1,1.3*33
+
+ 
+gpspipe -r | egrep --line-buffered  'GPGSA|GPRMC' | stdbuf -o0 gawk  '-F,' '
+{
+  if ( $1 ~ /GPRMC/ ) {
+    TIME=$2 ; # print ( TIME ) ;
+  } ;
+  SEC = substr ( TIME, 1, 2 ) * 3600 + substr ( TIME, 3, 2 ) * 60 + substr ( TIME, 5, 2) ;
+  CNT=0 ;
+  if ( $1 ~  /GPGSA/ ) {
+    for (i = 1; i <= NF; i++) {
+      if ( $i != "" ) {
+        # print ( $i ) ;
+        CNT++ ;
+      } ;
+    } ;
+    if ( CNT < 6 ) { 
+      print ( "# "  TIME , SEC , $0 ) 
+      print ( TIME , SEC , 0  ) ;
+    } else {
+      print ( TIME , SEC , CNT - 6  ) ;
+    } ;
+  } ;
+}' | \
+cat - >> /var/adm/nmea_`date '+%Y_%j'`_log 
+

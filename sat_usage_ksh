@@ -1,0 +1,182 @@
+#!/usr/bin/ksh
+
+# Sat Jul  4 21:57:16 CEST 2015
+# Sat Feb  6 20:49:24 CET 2016 - mayer - correct usage 
+# Sat Apr  2 21:59:24 CEST 2016 - mayer - header with IP 
+
+
+export AWK DATAFILE AVGCOUNT LIST STERM FILE LINEWIDTH MINMAX MIN MAX XTICS MYIPIS
+
+LIST=/tmp/erg.dat.$$
+LIST2=/tmp/erg.lines.$$
+STERM="set term x11 persist"
+
+
+thisusage(){
+    echo
+    echo show number of satellites as graph - v 2016 02 06
+    echo "usage: $0 [ -c COUNT ] [ -f IMG ] FILE " 
+    echo "       COUNT >= 1 " 
+    echo "       -f IMG      - output to file - IMG can be jpeg, png, ... " 
+    exit 1
+}
+
+
+AWK=gawk
+AVGCOUNT=1
+XTICS=1
+
+do_once=1
+while test $# -gt 2 -o do_once -eq 1
+  do
+    do_once=0
+    case $1 in
+      -c ) AVGCOUNT=$2 ; shift ; shift ;;
+      -f ) FILE="set output \"plot_$$.$2\" "
+           STERM="set terminal $2"
+           LINEWIDTH=1
+           XTICS=2
+           echo $FILE 1>&2 
+           shift ; shift ;;
+    esac
+    if test $# -lt 1
+      then
+        thisusage
+        exit 1
+    fi
+  done
+
+if test "$AVGCOUNT" -lt 1 -o "$AVGCOUNT" -gt 86400 
+  then
+    thisusage
+    exit 1 
+fi 
+
+DATAFILE=$1 
+: echo $DATAFILE
+
+if test ! -f "$DATAFILE" 
+  then
+    echo $0: file "$DATAFILE" not found 1>&2 
+    thisusage
+    exit 1
+fi
+
+
+if test -z "$FILE"
+  then
+    # check if DISPLAY is set ?
+    case "$DISPLAY" in
+      localhost:* ) ;;
+      "" )  echo '$DISPLAY not set' ; exit 1 ;;
+      * ) ;;
+    esac
+fi
+
+# check if gawk is available
+type $AWK > /dev/null
+if test $? -ne 0
+  then
+    echo try to install $AWK
+    echo if not available try a symlink to awk or change this script
+    exit 1
+fi
+
+# what's my IP
+type ip > /dev/null 2>&1
+if test $? -eq 0
+  then
+    MYIPIS="`uname -n`/`ip route get 244.0.0.0 | head -1 | $AWK '{ print $7 }'`"
+  else
+    MYIPIS="`uname -n`"
+fi
+
+DFILE=`basename $DATAFILE`
+
+cat $DATAFILE | grep -v '^# ' | \
+$AWK -v AVGCOUNT=$AVGCOUNT -v LIST2=$LIST2 -v DFILE=$DFILE '
+BEGIN {
+  MINSAT = 99 ; 
+  MAXSAT = 0 ; 
+  MINCOUNT = 0 ; 
+  MAXCNT = 0 ; 
+  SUM = 0 ;
+  CNT = 0 ; 
+  TOTALCNT = 0 ; 
+  TOTALSUM = 0 ; 
+  LASTX = 0 ; 
+}
+{
+
+  TOTALSUM += $3 ; 
+  TOTALCNT++ 3 ; 
+  # letzte zeile ist 0 
+  if ( LASTX < $2 ) {
+    LASTX = $2 ; 
+  } 
+
+  if ( $3 < MINSAT ) {
+    MINSAT = $3 ; 
+    MINCOUNT = 0 ;
+  }
+  if ( $3 == MINSAT ) {
+    MINCOUNT++ ; 
+  } 
+  if ( $3 > MAXSAT ) {
+    MAXSAT = $3 ;
+    MAXCOUNT = 0 ;
+  }
+  if ( $3 == MAXSAT ) {
+    MAXCOUNT++ ;
+  }
+
+  CNT++ ; 
+  if ( CNT == AVGCOUNT ) { 
+    SUM += $3 ;
+    printf ( "%.4f %.4f  \n", $2 / 3600 , SUM / CNT ) ; 
+    CNT = 0 ;
+    SUM = 0 ;
+  } else { 
+    SUM += $3 ; 
+  }
+}
+END {
+  # printf ( "min number of satellites %d total %d times \n" , MINSAT, MINCOUNT ) | "cat 1>&2" ; 
+  # printf ( "max number of satellites %d total %d times \n" , MAXSAT, MAXCOUNT ) | "cat 1>&2" ; 
+  # printf ( "avg number of satellites %.3f \n" , TOTALSUM / TOTALCNT ) | "cat 1>&2" ;
+  printf ( "statistics: %s min %d %d max %d %d avg %.3f \n" , DFILE, MINSAT, MINCOUNT, MAXSAT, MAXCOUNT, TOTALSUM / TOTALCNT ) | "cat 1>&2" ; 
+  # 3 lines at min, max and average
+  printf ( "set arrow from 0,%d to %.4f,%d nohead # MIN \n" , MINSAT, LASTX/3600, MINSAT ) > LIST2 ; 
+  printf ( "set arrow from 0,%d to %.4f,%d nohead # MAX \n" , MAXSAT, LASTX/3600, MAXSAT ) >> LIST2 ; 
+  print "set arrow from 0," TOTALSUM / TOTALCNT " to " LASTX/3600 ","TOTALSUM / TOTALCNT " nohead " >> LIST2 ; 
+  printf ( "# statistics: min %d %d max %d %d avg %.3f \n" , MINSAT, MINCOUNT, MAXSAT, MAXCOUNT, TOTALSUM / TOTALCNT ) >> LIST2 ;
+}' > $LIST
+
+MINMAX=`cat $LIST2`
+# echo "$MINMAX"
+MIN=`cat $LIST2 | grep MIN | tr ',' ' ' | awk '{ print $5 }'`
+MAX=`cat $LIST2 | grep MAX | tr ',' ' ' | awk '{ print $5 }'`
+
+DAY=`date '+%Y_%j'`
+STATISTIC=`cat $LIST2 | grep statistics`
+
+# echo "$DFILE $STATISTIC"
+
+gnuplot << EOF
+  $STERM
+  $FILE
+  set title "$MYIPIS $DFILE c=$AVGCOUNT\n$STATISTIC"
+  set yrange [$MIN-0.5:$MAX+1]
+  $MINMAX
+  set ylabel "number of satellites"
+  set xlabel "hour"
+  set xrange [-0.5:24.8]
+  set xtics $XTICS
+  plot "$LIST" using 1:2 title "satellites"
+EOF
+
+rm -f $LIST
+rm -f $LIST2
+
+exit 0
+

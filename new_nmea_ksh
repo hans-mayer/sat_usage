@@ -1,0 +1,11 @@
+:
+
+# Fri Jul  3 22:33:49 CEST 2015
+
+export PATH
+
+PATH=/opt/iiasa/bin:/usr/local/bin:/usr/local/sbin:$PATH
+
+pkill gpspipe
+nmea_log_ksh &
+
